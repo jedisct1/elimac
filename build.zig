@@ -13,6 +13,11 @@ pub fn build(b: *std.Build) void {
 
     lib.linkLibC();
 
+    const lib_options = b.addOptions();
+
+    const with_benchmark: bool = b.option(bool, "with-benchmark", "Compile benchmark") orelse false;
+    lib_options.addOption(bool, "benchmark", with_benchmark);
+
     lib.addIncludePath(.{ .path = "src/include" });
 
     const source_files = &.{
@@ -31,4 +36,16 @@ pub fn build(b: *std.Build) void {
         .install_subdir = "",
         .source_dir = .{ .path = "src/include" },
     });
+
+    if (with_benchmark) {
+        const benchmark = b.addExecutable(.{
+            .name = "benchmark",
+            .root_source_file = .{ .path = "src/test/benchmark.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        benchmark.addIncludePath(.{ .path = "src/include" });
+        benchmark.linkLibrary(lib);
+        b.installArtifact(benchmark);
+    }
 }
