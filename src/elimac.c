@@ -61,7 +61,7 @@ AES_KEYGEN(BlockVec block_vec, const int rc)
 }
 
 #ifndef elimac_PARALLELISM
-#    define elimac_PARALLELISM 8
+#    define elimac_PARALLELISM 4
 #endif
 
 #define elimac_H_ROUNDS 7
@@ -169,6 +169,9 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
         errno = E2BIG;
         return -1;
     }
+
+#if elimac_PARALLELISM > 1
+
     BlockVec accs[elimac_PARALLELISM];
     for (size_t i = 0; i < elimac_PARALLELISM; i++) {
         accs[i] = ZERO128;
@@ -201,6 +204,12 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
     for (size_t j = 1; j < elimac_PARALLELISM; j++) {
         acc = XOR128(acc, accs[j]);
     }
+
+#else
+    size_t   i   = 0;
+    BlockVec acc = ZERO128;
+#endif
+
     for (; i + 16 <= length; i += 16) {
         const BlockVec k = st->i_keys[i / 16];
         BlockVec       kx;
@@ -240,33 +249,6 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
     t = AES_XENCRYPTLAST(t, st->e_rks[elimac_E_ROUNDS - 1]);
     t = XOR128(t, st->e_rks[elimac_E_ROUNDS]);
     STORE128(tag, t);
-
-    return 0;
-}
-
-int
-main(void)
-{
-    uint8_t key[elimac_KEYBYTES] = { 0 };
-    uint8_t msg[65536]           = { 0 };
-    uint8_t tag[elimac_MACBYTES];
-
-    elimac_state st;
-    if (elimac_init(&st, key, sizeof msg) == -1) {
-        return 1;
-    }
-
-    const unsigned long long iters = 100000000LL;
-    for (unsigned long long i = 0; i < iters; i++) {
-        if (elimac_mac(&st, tag, msg, 1) == -1) {
-            return 1;
-        }
-        msg[0] ^= tag[0];
-    }
-    for (size_t i = 0; i < elimac_MACBYTES; i++) {
-        printf("%02x", tag[i]);
-    }
-    putchar('\n');
 
     return 0;
 }
