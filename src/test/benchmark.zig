@@ -32,7 +32,7 @@ fn bench_elimac() !void {
     const elapsed_s = @as(f128, @floatFromInt(end - start)) / time.ns_per_s;
     const throughput = @as(f64, @floatCast(bits / (elapsed_s * 1000 * 1000)));
     const stdout = std.io.getStdOut().writer();
-    try stdout.print("AEGIS-128L MAC\t{d:10.2} Mb/s\n", .{throughput});
+    try stdout.print("EliMAC\t{d:10.2} Mb/s\n", .{throughput});
 }
 
 pub fn main() !void {
