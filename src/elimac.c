@@ -61,7 +61,7 @@ AES_KEYGEN(BlockVec block_vec, const int rc)
 }
 
 #ifndef elimac_PARALLELISM
-#    define elimac_PARALLELISM 4
+#    define elimac_PARALLELISM 11
 #endif
 
 #define elimac_H_ROUNDS 7

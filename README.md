@@ -14,4 +14,4 @@ Untested, do not use for anything serious.
 | --------------- | -------------- |
 | AEGIS-128L MAC  | 126404.87 Mb/s |
 | AEGIS-128X2 MAC | 166600.71 Mb/s |
-| EliMAC          | 175768.65 Mb/s |
+| EliMAC          | 247316.74 Mb/s |
