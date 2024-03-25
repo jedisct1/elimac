@@ -1,6 +1,6 @@
-# EliMac
+# EliMAC
 
-EliMac is a ridiculously fast AES-based Message Authentication Code.
+EliMAC is a ridiculously fast AES-based Message Authentication Code.
 
 It was designed by Christoph Dobraunig, Bart Mennink and Samuel Neves, and was presented at FSE 2024.
 
