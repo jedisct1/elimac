@@ -18,7 +18,7 @@ pub fn build(b: *std.Build) void {
     const with_benchmark: bool = b.option(bool, "with-benchmark", "Compile benchmark") orelse false;
     lib_options.addOption(bool, "benchmark", with_benchmark);
 
-    lib.addIncludePath(.{ .path = "src/include" });
+    lib.addIncludePath(b.path("src/include"));
 
     const source_files = &.{
         "src/elimac.c",
@@ -34,17 +34,17 @@ pub fn build(b: *std.Build) void {
     b.installDirectory(.{
         .install_dir = .header,
         .install_subdir = "",
-        .source_dir = .{ .path = "src/include" },
+        .source_dir = b.path("src/include"),
     });
 
     if (with_benchmark) {
         const benchmark = b.addExecutable(.{
             .name = "benchmark",
-            .root_source_file = .{ .path = "src/test/benchmark.zig" },
+            .root_source_file = b.path("src/test/benchmark.zig"),
             .target = target,
             .optimize = optimize,
         });
-        benchmark.addIncludePath(.{ .path = "src/include" });
+        benchmark.addIncludePath(b.path("src/include"));
         benchmark.linkLibrary(lib);
         b.installArtifact(benchmark);
     }
