@@ -36,6 +36,10 @@ typedef __m128i BlockVec;
 #define AES_ENCRYPTLAST(block_vec, rkey) _mm_aesenclast_si128((block_vec), (rkey))
 #define AES_KEYGEN(block_vec, rc)        _mm_aeskeygenassist_si128((block_vec), (rc))
 
+#ifndef elimac_PARALLELISM
+#    define elimac_PARALLELISM 2
+#endif
+
 #define elimac_H_ROUNDS 7
 #define elimac_E_ROUNDS 10
 #define elimac_I_ROUNDS 4
