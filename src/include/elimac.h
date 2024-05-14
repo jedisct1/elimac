@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 typedef struct elimac_state {
-    uint8_t opaque[288];
+    uint8_t opaque[1024];
 } elimac_state;
 
 int elimac_init(elimac_state *st_, const uint8_t key[elimac_KEYBYTES], size_t max_length);
