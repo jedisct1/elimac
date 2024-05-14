@@ -170,7 +170,7 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
 #    define VS 2
 
     for (; i + elimac_PARALLELISM * 16 * VS <= length; i += elimac_PARALLELISM * 16 * VS) {
-        const BlockVec2 k = BROADCAST256(st->i_keys[i / (16 * VS)]);
+        const BlockVec2 k = BROADCAST256(st->i_keys[i / (16 * VS)]); // XXX - we should load, not broadcast
         BlockVec2       kx[elimac_PARALLELISM];
 
         for (size_t j = 0; j < elimac_PARALLELISM; j++) {
