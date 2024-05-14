@@ -12,8 +12,8 @@ Untested, do not use for anything serious.
 
 | Name            | Speed       |
 | --------------- | ----------- |
-| AEGIS-128X2 MAC | 166600 Mb/s |
-| EliMAC          | 247316 Mb/s |
+| AEGIS-128X2 MAC | 176160 Mb/s |
+| EliMAC          | 238320 Mb/s |
 
 ## Benchmark (Zen 4)
 

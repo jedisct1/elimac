@@ -5,8 +5,8 @@ const random = std.crypto.random;
 const time = std.time;
 const Timer = std.time.Timer;
 
-const msg_len: usize = 16384;
-const iterations = 100000;
+const msg_len: usize = 65536;
+const iterations = 1000000;
 
 fn bench_elimac() !void {
     var key: [elimac.elimac_KEYBYTES]u8 = undefined;
