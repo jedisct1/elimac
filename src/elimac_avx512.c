@@ -47,6 +47,7 @@ typedef __m512i BlockVec4;
 #define ZERO256                              _mm256_setzero_si256()
 #define BROADCAST256(a)                      _mm256_broadcastsi128_si256(a)
 #define XOR256(a, b)                         _mm256_xor_si256((a), (b))
+#define EXTRACT128(a, imm)                   _mm256_extracti128_si256((a), (imm))
 #define AES_X2_ENCRYPT(block_vec2, rkey)     _mm256_aesenc_epi128((block_vec2), (rkey))
 #define AES_X2_ENCRYPTLAST(block_vec2, rkey) _mm256_aesenclast_epi128((block_vec2), (rkey))
 
@@ -55,6 +56,7 @@ typedef __m512i BlockVec4;
 #define ZERO512                              _mm512_setzero_si512()
 #define BROADCAST512(a)                      _mm512_broadcast_i32x4(a)
 #define XOR512(a, b)                         _mm512_xor_si512((a), (b))
+#define EXTRACT256(a, imm)                   _mm512_extracti64x4_epi64((a), (imm))
 #define AES_X4_ENCRYPT(block_vec4, rkey)     _mm512_aesenc_epi128((block_vec4), (rkey))
 #define AES_X4_ENCRYPTLAST(block_vec4, rkey) _mm512_aesenclast_epi128((block_vec4), (rkey))
 
@@ -208,9 +210,7 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
     for (size_t j = 1; j < elimac_PARALLELISM; j++) {
         acc4 = XOR512(acc4, accs4[j]);
     }
-    const BlockVec2 acc4_0 = _mm512_extracti64x4_epi64(acc4, 0);
-    const BlockVec2 acc4_1 = _mm512_extracti64x4_epi64(acc4, 1);
-    BlockVec2       acc2   = XOR256(acc4_0, acc4_1);
+    BlockVec2 acc2 = XOR256(EXTRACT256(acc4, 0), EXTRACT256(acc4, 1));
 
     BlockVec2 accs2[elimac_PARALLELISM];
     for (size_t i = 0; i < elimac_PARALLELISM; i++) {
@@ -245,7 +245,7 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
     for (size_t j = 1; j < elimac_PARALLELISM; j++) {
         acc2 = XOR256(acc2, accs2[j]);
     }
-    BlockVec acc = XOR128(_mm256_extracti128_si256(acc2, 0), _mm256_extracti128_si256(acc2, 1));
+    BlockVec acc = XOR128(EXTRACT128(acc2, 0), EXTRACT128(acc2, 1));
 
     BlockVec accs[elimac_PARALLELISM];
     for (size_t i = 2; i < elimac_PARALLELISM; i++) {

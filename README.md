@@ -10,8 +10,14 @@ Untested, do not use for anything serious.
 
 ## Benchmark (Macbook Pro M1)
 
-| Name            | Speed          |
-| --------------- | -------------- |
-| AEGIS-128L MAC  | 126404.87 Mb/s |
-| AEGIS-128X2 MAC | 166600.71 Mb/s |
-| EliMAC          | 247316.74 Mb/s |
+| Name            | Speed       |
+| --------------- | ----------- |
+| AEGIS-128X2 MAC | 166600 Mb/s |
+| EliMAC          | 247316 Mb/s |
+
+## Benchmark (Zen 4)
+
+| Name            | Speed       |
+| --------------- | ----------- |
+| AEGIS-128X4 MAC | 396880 Mb/s |
+| EliMAC          | 452163 Mb/s |
