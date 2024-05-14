@@ -13,14 +13,21 @@
 #define COMPILER_ASSERT(X) (void) sizeof(char[(X) ? 1 : -1])
 
 #ifdef __clang__
-#    pragma clang attribute push(__attribute__((target("aes,avx"))), apply_to = function)
+#    if __clang_major__ >= 18
+#        pragma clang attribute push(__attribute__((target("vaes,avx512f,evex512"))), \
+                                     apply_to = function)
+#    else
+#        pragma clang attribute push(__attribute__((target("vaes,avx512f"))), apply_to = function)
+#    endif
 #elif defined(__GNUC__)
-#    pragma GCC target("aes,avx")
+#    pragma GCC target("vaes,avx512f")
 #endif
 
 #include <immintrin.h>
 
 typedef __m128i BlockVec;
+typedef __m256i BlockVec2;
+typedef __m512i BlockVec4;
 
 #define LOAD128(a)                 _mm_loadu_si128((const BlockVec *) (a))
 #define STORE128(a, b)             _mm_storeu_si128((BlockVec *) (a), (b))
@@ -34,6 +41,22 @@ typedef __m128i BlockVec;
 #define AES_ENCRYPT(block_vec, rkey)     _mm_aesenc_si128((block_vec), (rkey))
 #define AES_ENCRYPTLAST(block_vec, rkey) _mm_aesenclast_si128((block_vec), (rkey))
 #define AES_KEYGEN(block_vec, rc)        _mm_aeskeygenassist_si128((block_vec), (rc))
+
+#define LOAD256(a)                           _mm256_loadu_si256((const BlockVec2 *) (a))
+#define STORE256(a, b)                       _mm256_storeu_si256((BlockVec2 *) (a), (b))
+#define ZERO256                              _mm256_setzero_si256()
+#define BROADCAST256(a)                      _mm256_broadcastsi128_si256(a)
+#define XOR256(a, b)                         _mm256_xor_si256((a), (b))
+#define AES_X2_ENCRYPT(block_vec2, rkey)     _mm256_aesenc_epi128((block_vec2), (rkey))
+#define AES_X2_ENCRYPTLAST(block_vec2, rkey) _mm256_aesenclast_epi128((block_vec2), (rkey))
+
+#define LOAD512(a)                           _mm512_loadu_si512((const BlockVec4 *) (a))
+#define STORE512(a, b)                       _mm512_storeu_si512((BlockVec4 *) (a), (b))
+#define ZERO512                              _mm512_setzero_si512()
+#define BROADCAST512(a)                      _mm512_broadcast_i32x4(a)
+#define XOR512(a, b)                         _mm512_xor_si512((a), (b))
+#define AES_X4_ENCRYPT(block_vec4, rkey)     _mm512_aesenc_epi128((block_vec4), (rkey))
+#define AES_X4_ENCRYPTLAST(block_vec4, rkey) _mm512_aesenclast_epi128((block_vec4), (rkey))
 
 #ifndef elimac_PARALLELISM
 #    define elimac_PARALLELISM 10
@@ -50,7 +73,7 @@ typedef struct EliMac {
     size_t    max_length;
 } EliMac;
 
-#define elimac_STATE_ALIGN 16
+#define elimac_STATE_ALIGN 32
 
 static void __vectorcall expand128(BlockVec key, BlockVec *rkeys, const int rounds)
 {
@@ -150,12 +173,85 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
 
 #if elimac_PARALLELISM > 1
 
-    BlockVec accs[elimac_PARALLELISM];
+    BlockVec4 accs4[elimac_PARALLELISM];
     for (size_t i = 0; i < elimac_PARALLELISM; i++) {
-        accs[i] = ZERO128;
+        accs4[i] = ZERO512;
     }
 
     size_t i = 0;
+
+#    define VS 4
+
+    for (; i + elimac_PARALLELISM * 16 * VS <= length; i += elimac_PARALLELISM * 16 * VS) {
+        const BlockVec4 k = BROADCAST512(st->i_keys[i / (16 * VS)]);
+        BlockVec4       kx[elimac_PARALLELISM];
+
+        for (size_t j = 0; j < elimac_PARALLELISM; j++) {
+            kx[j] = XOR512(k, LOAD512(&message[i + j * (16 * VS)]));
+            kx[j] = XOR512(kx[j], BROADCAST512(st->i_rks[0]));
+        }
+        for (size_t j = 1; j < elimac_I_ROUNDS; j++) {
+            for (size_t k = 0; k < elimac_PARALLELISM; k++) {
+                kx[k] = AES_X4_ENCRYPT(kx[k], BROADCAST512(st->i_rks[j]));
+            }
+        }
+        for (size_t j = 0; j < elimac_PARALLELISM; j++) {
+            kx[j] = AES_X4_ENCRYPTLAST(kx[j], BROADCAST512(st->i_rks[elimac_I_ROUNDS]));
+        }
+
+        for (size_t j = 0; j < elimac_PARALLELISM; j++) {
+            accs4[j] = XOR512(accs4[j], kx[j]);
+        }
+    }
+
+    BlockVec4 acc4 = accs4[0];
+    for (size_t j = 1; j < elimac_PARALLELISM; j++) {
+        acc4 = XOR512(acc4, accs4[j]);
+    }
+    const BlockVec2 acc4_0 = _mm512_extracti64x4_epi64(acc4, 0);
+    const BlockVec2 acc4_1 = _mm512_extracti64x4_epi64(acc4, 1);
+    BlockVec2       acc2   = XOR256(acc4_0, acc4_1);
+
+    BlockVec2 accs2[elimac_PARALLELISM];
+    for (size_t i = 0; i < elimac_PARALLELISM; i++) {
+        accs2[i] = ZERO256;
+    }
+
+#    undef VS
+#    define VS 2
+
+    for (; i + elimac_PARALLELISM * 16 * VS <= length; i += elimac_PARALLELISM * 16 * VS) {
+        const BlockVec2 k = BROADCAST256(st->i_keys[i / (16 * VS)]);
+        BlockVec2       kx[elimac_PARALLELISM];
+
+        for (size_t j = 0; j < elimac_PARALLELISM; j++) {
+            kx[j] = XOR256(k, LOAD256(&message[i + j * (16 * VS)]));
+            kx[j] = XOR256(kx[j], BROADCAST256(st->i_rks[0]));
+        }
+        for (size_t j = 1; j < elimac_I_ROUNDS; j++) {
+            for (size_t k = 0; k < elimac_PARALLELISM; k++) {
+                kx[k] = AES_X2_ENCRYPT(kx[k], BROADCAST256(st->i_rks[j]));
+            }
+        }
+        for (size_t j = 0; j < elimac_PARALLELISM; j++) {
+            kx[j] = AES_X2_ENCRYPTLAST(kx[j], BROADCAST256(st->i_rks[elimac_I_ROUNDS]));
+        }
+
+        for (size_t j = 0; j < elimac_PARALLELISM; j++) {
+            accs2[j] = XOR256(accs2[j], kx[j]);
+        }
+    }
+
+    for (size_t j = 1; j < elimac_PARALLELISM; j++) {
+        acc2 = XOR256(acc2, accs2[j]);
+    }
+    BlockVec acc = XOR128(_mm256_extracti128_si256(acc2, 0), _mm256_extracti128_si256(acc2, 1));
+
+    BlockVec accs[elimac_PARALLELISM];
+    for (size_t i = 2; i < elimac_PARALLELISM; i++) {
+        accs[i] = ZERO128;
+    }
+
     for (; i + elimac_PARALLELISM * 16 <= length; i += elimac_PARALLELISM * 16) {
         const BlockVec k = st->i_keys[i / 16];
         BlockVec       kx[elimac_PARALLELISM];
@@ -178,8 +274,7 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
         }
     }
 
-    BlockVec acc = accs[0];
-    for (size_t j = 1; j < elimac_PARALLELISM; j++) {
+    for (size_t j = 0; j < elimac_PARALLELISM; j++) {
         acc = XOR128(acc, accs[j]);
     }
 
