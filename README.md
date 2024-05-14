@@ -6,7 +6,7 @@ It was designed by Christoph Dobraunig, Bart Mennink and Samuel Neves, and was p
 
 This is an experimental implementation for x86_64 and ARM64 CPUs with AES extensions, leveraging precomputation.
 
-Untested, do not use for anything serious.
+WIP, untested, do not use for anything yet.
 
 ## Benchmarks
 
