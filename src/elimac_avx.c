@@ -37,7 +37,7 @@ typedef __m128i BlockVec;
 #define AES_KEYGEN(block_vec, rc)        _mm_aeskeygenassist_si128((block_vec), (rc))
 
 #ifndef elimac_PARALLELISM
-#    define elimac_PARALLELISM 2
+#    define elimac_PARALLELISM 10
 #endif
 
 #define elimac_H_ROUNDS 7
