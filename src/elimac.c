@@ -12,42 +12,41 @@
 
 #define COMPILER_ASSERT(X) (void) sizeof(char[(X) ? 1 : -1])
 
-#if !(defined(__aarch64__) || defined(_M_ARM64))
-#    error "Unsupported architecture"
-#endif
+#if defined(__aarch64__) || defined(_M_ARM64)
 
-#ifndef __ARM_FEATURE_CRYPTO
-#    define __ARM_FEATURE_CRYPTO 1
-#endif
-#ifndef __ARM_FEATURE_AES
-#    define __ARM_FEATURE_AES 1
-#endif
+#    ifndef __ARM_FEATURE_CRYPTO
+#        define __ARM_FEATURE_CRYPTO 1
+#    endif
+#    ifndef __ARM_FEATURE_AES
+#        define __ARM_FEATURE_AES 1
+#    endif
 
-#include <arm_neon.h>
+#    include <arm_neon.h>
 
-#ifdef __clang__
-#    pragma clang attribute push(__attribute__((target("neon,crypto,aes"))), apply_to = function)
-#elif defined(__GNUC__)
-#    pragma GCC target("+simd+crypto")
-#endif
+#    ifdef __clang__
+#        pragma clang attribute push(__attribute__((target("neon,crypto,aes"))), \
+                                     apply_to = function)
+#    elif defined(__GNUC__)
+#        pragma GCC target("+simd+crypto")
+#    endif
 
 typedef uint64x2_t BlockVec;
 
-#define LOAD128(a)     vld1q_u64((const uint64_t *) (const void *) (a))
-#define STORE128(a, b) vst1q_u64((uint64_t *) (void *) (a), (b))
-#define SET64x2(a, b)  vsetq_lane_u64((uint64_t) (a), vmovq_n_u64((uint64_t) (b)), 1)
-#define ZERO128        vmovq_n_u8(0)
-#define ADD64x2(a, b)  vaddq_u64((a), (b))
-#define XOR128(a, b)   veorq_u64((a), (b))
-#define SHUFFLE32x4(x, a, b, c, d)                                          \
-    vreinterpretq_u64_u32(__builtin_shufflevector(vreinterpretq_u32_u64(x), \
-                                                  vreinterpretq_u32_u64(x), (a), (b), (c), (d)))
-#define BYTESHL128(a, b) vreinterpretq_u64_u8(vextq_s8(vdupq_n_s8(0), (int8x16_t) a, 16 - (b)))
+#    define LOAD128(a)     vld1q_u64((const uint64_t *) (const void *) (a))
+#    define STORE128(a, b) vst1q_u64((uint64_t *) (void *) (a), (b))
+#    define SET64x2(a, b)  vsetq_lane_u64((uint64_t) (a), vmovq_n_u64((uint64_t) (b)), 1)
+#    define ZERO128        vmovq_n_u8(0)
+#    define ADD64x2(a, b)  vaddq_u64((a), (b))
+#    define XOR128(a, b)   veorq_u64((a), (b))
+#    define SHUFFLE32x4(x, a, b, c, d)                 \
+        vreinterpretq_u64_u32(__builtin_shufflevector( \
+            vreinterpretq_u32_u64(x), vreinterpretq_u32_u64(x), (a), (b), (c), (d)))
+#    define BYTESHL128(a, b) vreinterpretq_u64_u8(vextq_s8(vdupq_n_s8(0), (int8x16_t) a, 16 - (b)))
 
-#define AES_XENCRYPT(block_vec, rkey) \
-    vreinterpretq_u64_u8(vaesmcq_u8(vaeseq_u8(vreinterpretq_u8_u64(block_vec), rkey)))
-#define AES_XENCRYPTLAST(block_vec, rkey) \
-    vreinterpretq_u64_u8(vaeseq_u8(vreinterpretq_u8_u64(block_vec), rkey))
+#    define AES_XENCRYPT(block_vec, rkey) \
+        vreinterpretq_u64_u8(vaesmcq_u8(vaeseq_u8(vreinterpretq_u8_u64(block_vec), rkey)))
+#    define AES_XENCRYPTLAST(block_vec, rkey) \
+        vreinterpretq_u64_u8(vaeseq_u8(vreinterpretq_u8_u64(block_vec), rkey))
 
 static inline BlockVec
 AES_KEYGEN(BlockVec block_vec, const int rc)
@@ -59,8 +58,40 @@ AES_KEYGEN(BlockVec block_vec, const int rc)
     return XOR128(b, c);
 }
 
-#ifndef elimac_PARALLELISM
-#    define elimac_PARALLELISM 11
+#    ifndef elimac_PARALLELISM
+#        define elimac_PARALLELISM 11
+#    endif
+
+#elif defined(__x86_64__) || defined(_M_X64)
+
+#    ifdef __clang__
+#        pragma clang attribute push(__attribute__((target("aes,avx"))), apply_to = function)
+#    elif defined(__GNUC__)
+#        pragma GCC target("aes,avx")
+#    endif
+
+#    include <immintrin.h>
+#    include <wmmintrin.h>
+
+typedef __m128i BlockVec;
+
+#    define LOAD128(a)                 _mm_loadu_si128((const BlockVec *) (a))
+#    define STORE128(a, b)             _mm_storeu_si128((BlockVec *) (a), (b))
+#    define SET64x2(a, b)              _mm_set_epi64x((uint64_t) (a), (uint64_t) (b))
+#    define ZERO128                    _mm_setzero_si128()
+#    define ADD64x2(a, b)              _mm_add_epi64((a), (b))
+#    define XOR128(a, b)               _mm_xor_si128((a), (b))
+#    define SHUFFLE32x4(x, a, b, c, d) _mm_shuffle_epi32((x), _MM_SHUFFLE((d), (c), (b), (a)))
+#    define BYTESHL128(a, b)           _mm_slli_si128(a, b)
+
+#    define AES_ENCRYPT(block_vec, rkey)     _mm_aesenc_si128((block_vec), (rkey))
+#    define AES_ENCRYPTLAST(block_vec, rkey) _mm_aesenclast_si128((block_vec), (rkey))
+#    define AES_KEYGEN(block_vec, rc)        _mm_aeskeygenassist_si128((block_vec), (rc))
+
+#else
+
+#    error "Unsupported architecture"
+
 #endif
 
 #define elimac_H_ROUNDS 7
@@ -135,13 +166,23 @@ elimac_init(elimac_state *st_, const uint8_t key[elimac_KEYBYTES], size_t max_le
     BlockVec       ctr  = ZERO128;
     const BlockVec incr = SET64x2(0x00010001, 0x00010001);
     for (size_t i = 0; i < max_blocks; i++) {
-        ctr            = ADD64x2(ctr, incr);
-        BlockVec i_key = AES_XENCRYPT(ctr, h_rks[0]);
+        BlockVec i_key;
+
+        ctr = ADD64x2(ctr, incr);
+#ifdef AES_XENCRYPT
+        i_key = AES_XENCRYPT(ctr, h_rks[0]);
         for (size_t j = 1; j < elimac_H_ROUNDS - 1; j++) {
             i_key = AES_XENCRYPT(i_key, h_rks[j]);
         }
-        i_key         = AES_XENCRYPTLAST(i_key, h_rks[elimac_H_ROUNDS - 1]);
-        i_key         = XOR128(i_key, h_rks[elimac_H_ROUNDS]);
+        i_key = AES_XENCRYPTLAST(i_key, h_rks[elimac_H_ROUNDS - 1]);
+        i_key = XOR128(i_key, h_rks[elimac_H_ROUNDS]);
+#else
+        i_key = XOR128(ctr, h_rks[0]);
+        for (size_t j = 1; j < elimac_H_ROUNDS - 1; j++) {
+            i_key = AES_ENCRYPT(i_key, h_rks[j]);
+        }
+        i_key = AES_ENCRYPTLAST(i_key, h_rks[elimac_H_ROUNDS]);
+#endif
         st->i_keys[i] = i_key;
     }
     return 0;
@@ -181,6 +222,7 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
         const BlockVec k = st->i_keys[i / 16];
         BlockVec       kx[elimac_PARALLELISM];
 
+#    ifdef AES_XENCRYPT
         for (size_t j = 0; j < elimac_PARALLELISM; j++) {
             kx[j] = XOR128(k, LOAD128(&message[i + j * 16]));
             kx[j] = AES_XENCRYPT(kx[j], st->i_rks[0]);
@@ -194,6 +236,20 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
             kx[j] = AES_XENCRYPTLAST(kx[j], st->i_rks[elimac_I_ROUNDS - 1]);
             kx[j] = XOR128(kx[j], st->i_rks[elimac_I_ROUNDS]);
         }
+#    else
+        for (size_t j = 0; j < elimac_PARALLELISM; j++) {
+            kx[j] = XOR128(k, LOAD128(&message[i + j * 16]));
+            kx[j] = XOR128(kx[j], st->i_rks[0]);
+        }
+        for (size_t j = 1; j < elimac_I_ROUNDS; j++) {
+            for (size_t k = 0; k < elimac_PARALLELISM; k++) {
+                kx[k] = AES_ENCRYPT(kx[k], st->i_rks[j]);
+            }
+        }
+        for (size_t j = 0; j < elimac_PARALLELISM; j++) {
+            kx[j] = AES_ENCRYPTLAST(kx[j], st->i_rks[elimac_I_ROUNDS]);
+        }
+#    endif
         for (size_t j = 0; j < elimac_PARALLELISM; j++) {
             accs[j] = XOR128(accs[j], kx[j]);
         }
@@ -214,12 +270,20 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
         BlockVec       kx;
 
         kx = XOR128(k, LOAD128(&message[i]));
+#ifdef AES_XENCRYPT
         kx = AES_XENCRYPT(kx, st->i_rks[0]);
         for (size_t j = 1; j < elimac_I_ROUNDS - 1; j++) {
             kx = AES_XENCRYPT(kx, st->i_rks[j]);
         }
-        kx  = AES_XENCRYPTLAST(kx, st->i_rks[elimac_I_ROUNDS - 1]);
-        kx  = XOR128(kx, st->i_rks[elimac_I_ROUNDS]);
+        kx = AES_XENCRYPTLAST(kx, st->i_rks[elimac_I_ROUNDS - 1]);
+        kx = XOR128(kx, st->i_rks[elimac_I_ROUNDS]);
+#else
+        kx = XOR128(kx, st->i_rks[0]);
+        for (size_t j = 1; j < elimac_I_ROUNDS; j++) {
+            kx = AES_ENCRYPT(kx, st->i_rks[j]);
+        }
+        kx = AES_ENCRYPTLAST(kx, st->i_rks[elimac_I_ROUNDS]);
+#endif
         acc = XOR128(acc, kx);
     }
     const size_t left       = length - i;
@@ -231,22 +295,38 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
         BlockVec       kx;
 
         kx = XOR128(k, LOAD128(padded));
+#ifdef AES_XENCRYPT
         kx = AES_XENCRYPT(kx, st->i_rks[0]);
         for (size_t j = 1; j < elimac_I_ROUNDS - 1; j++) {
             kx = AES_XENCRYPT(kx, st->i_rks[j]);
         }
-        kx  = AES_XENCRYPTLAST(kx, st->i_rks[elimac_I_ROUNDS - 1]);
-        kx  = XOR128(kx, st->i_rks[elimac_I_ROUNDS]);
+        kx = AES_XENCRYPTLAST(kx, st->i_rks[elimac_I_ROUNDS - 1]);
+        kx = XOR128(kx, st->i_rks[elimac_I_ROUNDS]);
+#else
+        kx = XOR128(kx, st->i_rks[0]);
+        for (size_t j = 1; j < elimac_I_ROUNDS; j++) {
+            kx = AES_ENCRYPT(kx, st->i_rks[j]);
+        }
+        kx = AES_ENCRYPTLAST(kx, st->i_rks[elimac_I_ROUNDS]);
+#endif
         acc = XOR128(acc, kx);
     }
 
     BlockVec t;
+#ifdef AES_XENCRYPT
     t = AES_XENCRYPT(acc, st->e_rks[0]);
     for (size_t j = 1; j < elimac_E_ROUNDS - 1; j++) {
         t = AES_XENCRYPT(t, st->e_rks[j]);
     }
     t = AES_XENCRYPTLAST(t, st->e_rks[elimac_E_ROUNDS - 1]);
     t = XOR128(t, st->e_rks[elimac_E_ROUNDS]);
+#else
+    t = XOR128(acc, st->e_rks[0]);
+    for (size_t j = 1; j < elimac_E_ROUNDS; j++) {
+        t = AES_ENCRYPT(t, st->e_rks[j]);
+    }
+    t = AES_ENCRYPTLAST(t, st->e_rks[elimac_E_ROUNDS]);
+#endif
     STORE128(tag, t);
 
     return 0;
