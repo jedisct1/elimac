@@ -55,7 +55,7 @@ typedef __m256i BlockVec2;
 #define elimac_I_ROUNDS 4
 
 typedef struct EliMac {
-    CRYPTO_ALIGN(32) BlockVec i_rks[1 + elimac_I_ROUNDS];
+    BlockVec  i_rks[1 + elimac_I_ROUNDS];
     BlockVec  e_rks[1 + elimac_E_ROUNDS];
     BlockVec *i_keys;
     size_t    max_length;
@@ -106,7 +106,7 @@ elimac_init(elimac_state *st_, const uint8_t key[elimac_KEYBYTES], size_t max_le
     st->max_length          = max_length;
     const size_t max_blocks = (max_length + 15) / 16;
 
-    st->i_keys = malloc(max_blocks * sizeof(BlockVec));
+    st->i_keys = aligned_alloc(32, max_blocks * sizeof(BlockVec));
     if (st->i_keys == NULL) {
         return -1;
     }

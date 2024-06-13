@@ -95,7 +95,7 @@ elimac_init(elimac_state *st_, const uint8_t key[elimac_KEYBYTES], size_t max_le
     st->max_length          = max_length;
     const size_t max_blocks = (max_length + 15) / 16;
 
-    st->i_keys = malloc(max_blocks * sizeof(BlockVec));
+    st->i_keys = aligned_alloc(16, max_blocks * sizeof(BlockVec));
     if (st->i_keys == NULL) {
         return -1;
     }
