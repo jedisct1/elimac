@@ -38,6 +38,7 @@ typedef __m256i BlockVec2;
 #define AES_KEYGEN(block_vec, rc)        _mm_aeskeygenassist_si128((block_vec), (rc))
 
 #define LOAD256(a)                           _mm256_loadu_si256((const BlockVec2 *) (a))
+#define LOAD256A(a)                          _mm256_load_si256((const BlockVec2 *) (a))
 #define STORE256(a, b)                       _mm256_storeu_si256((BlockVec2 *) (a), (b))
 #define ZERO256                              _mm256_setzero_si256()
 #define BROADCAST256(a)                      _mm256_broadcastsi128_si256(a)
@@ -54,8 +55,8 @@ typedef __m256i BlockVec2;
 #define elimac_I_ROUNDS 4
 
 typedef struct EliMac {
+    CRYPTO_ALIGN(32) BlockVec i_rks[1 + elimac_I_ROUNDS];
     BlockVec  e_rks[1 + elimac_E_ROUNDS];
-    BlockVec  i_rks[1 + elimac_I_ROUNDS];
     BlockVec *i_keys;
     size_t    max_length;
 } EliMac;
@@ -170,9 +171,8 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
 #    define VS 2
 
     for (; i + elimac_PARALLELISM * 16 * VS <= length; i += elimac_PARALLELISM * 16 * VS) {
-        const BlockVec2 k =
-            BROADCAST256(st->i_keys[i / (16 * VS)]); // XXX - we should load, not broadcast
-        BlockVec2 kx[elimac_PARALLELISM];
+        const BlockVec2 k = LOAD256A((const BlockVec2 *) (const void *) &st->i_keys[i / 16]);
+        BlockVec2       kx[elimac_PARALLELISM];
 
         for (size_t j = 0; j < elimac_PARALLELISM; j++) {
             kx[j] = XOR256(k, LOAD256(&message[i + j * (16 * VS)]));

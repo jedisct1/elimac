@@ -43,6 +43,7 @@ typedef __m512i BlockVec4;
 #define AES_KEYGEN(block_vec, rc)        _mm_aeskeygenassist_si128((block_vec), (rc))
 
 #define LOAD256(a)                           _mm256_loadu_si256((const BlockVec2 *) (a))
+#define LOAD256A(a)                          _mm256_load_si256((const BlockVec2 *) (a))
 #define STORE256(a, b)                       _mm256_storeu_si256((BlockVec2 *) (a), (b))
 #define ZERO256                              _mm256_setzero_si256()
 #define BROADCAST256(a)                      _mm256_broadcastsi128_si256(a)
@@ -52,6 +53,7 @@ typedef __m512i BlockVec4;
 #define AES_X2_ENCRYPTLAST(block_vec2, rkey) _mm256_aesenclast_epi128((block_vec2), (rkey))
 
 #define LOAD512(a)                           _mm512_loadu_si512((const BlockVec4 *) (a))
+#define LOAD512A(a)                          _mm512_load_si512((const BlockVec4 *) (a))
 #define STORE512(a, b)                       _mm512_storeu_si512((BlockVec4 *) (a), (b))
 #define ZERO512                              _mm512_setzero_si512()
 #define BROADCAST512(a)                      _mm512_broadcast_i32x4(a)
@@ -69,13 +71,13 @@ typedef __m512i BlockVec4;
 #define elimac_I_ROUNDS 4
 
 typedef struct EliMac {
+    CRYPTO_ALIGN(64) BlockVec i_rks[1 + elimac_I_ROUNDS];
     BlockVec  e_rks[1 + elimac_E_ROUNDS];
-    BlockVec  i_rks[1 + elimac_I_ROUNDS];
     BlockVec *i_keys;
     size_t    max_length;
 } EliMac;
 
-#define elimac_STATE_ALIGN 32
+#define elimac_STATE_ALIGN 64
 
 static void __vectorcall expand128(BlockVec key, BlockVec *rkeys, const int rounds)
 {
@@ -185,7 +187,7 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
 #    define VS 4
 
     for (; i + elimac_PARALLELISM * 16 * VS <= length; i += elimac_PARALLELISM * 16 * VS) {
-        const BlockVec4 k = BROADCAST512(st->i_keys[i / (16 * VS)]);
+        const BlockVec4 k = LOAD512A((const BlockVec4 *) (const void *) &st->i_keys[i / 16]);
         BlockVec4       kx[elimac_PARALLELISM];
 
         for (size_t j = 0; j < elimac_PARALLELISM; j++) {
@@ -221,7 +223,7 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
 #    define VS 2
 
     for (; i + elimac_PARALLELISM * 16 * VS <= length; i += elimac_PARALLELISM * 16 * VS) {
-        const BlockVec2 k = BROADCAST256(st->i_keys[i / (16 * VS)]);
+        const BlockVec2 k = LOAD256A((const BlockVec2 *) (const void *) &st->i_keys[i / 16]);
         BlockVec2       kx[elimac_PARALLELISM];
 
         for (size_t j = 0; j < elimac_PARALLELISM; j++) {

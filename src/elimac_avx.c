@@ -44,8 +44,8 @@ typedef __m128i BlockVec;
 #define elimac_I_ROUNDS 4
 
 typedef struct EliMac {
-    BlockVec  e_rks[1 + elimac_E_ROUNDS];
     BlockVec  i_rks[1 + elimac_I_ROUNDS];
+    BlockVec  e_rks[1 + elimac_E_ROUNDS];
     BlockVec *i_keys;
     size_t    max_length;
 } EliMac;
