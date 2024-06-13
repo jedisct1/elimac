@@ -301,24 +301,9 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
     uint8_t      padded[16] = { 0 };
     memcpy(padded, &message[i], left);
     padded[left] = 0x80;
-    {
-        const BlockVec k = st->i_keys[i / 16];
-        BlockVec       kx;
+    acc          = XOR128(acc, LOAD128(padded));
 
-        kx = XOR128(k, LOAD128(padded));
-
-        kx = XOR128(kx, st->i_rks[0]);
-        for (size_t j = 1; j < elimac_I_ROUNDS; j++) {
-            kx = AES_ENCRYPT(kx, st->i_rks[j]);
-        }
-        kx = AES_ENCRYPTLAST(kx, st->i_rks[elimac_I_ROUNDS]);
-
-        acc = XOR128(acc, kx);
-    }
-
-    BlockVec t;
-
-    t = XOR128(acc, st->e_rks[0]);
+    BlockVec t = XOR128(acc, st->e_rks[0]);
     for (size_t j = 1; j < elimac_E_ROUNDS; j++) {
         t = AES_ENCRYPT(t, st->e_rks[j]);
     }

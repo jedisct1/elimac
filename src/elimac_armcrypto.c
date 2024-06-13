@@ -225,29 +225,14 @@ elimac_mac(const elimac_state *st_, uint8_t tag[elimac_MACBYTES], const uint8_t 
 
         acc = XOR128(acc, kx);
     }
+
     const size_t left       = length - i;
     uint8_t      padded[16] = { 0 };
     memcpy(padded, &message[i], left);
     padded[left] = 0x80;
-    {
-        const BlockVec k = st->i_keys[i / 16];
-        BlockVec       kx;
+    acc          = XOR128(acc, LOAD128(padded));
 
-        kx = XOR128(k, LOAD128(padded));
-
-        kx = AES_XENCRYPT(kx, st->i_rks[0]);
-        for (size_t j = 1; j < elimac_I_ROUNDS - 1; j++) {
-            kx = AES_XENCRYPT(kx, st->i_rks[j]);
-        }
-        kx = AES_XENCRYPTLAST(kx, st->i_rks[elimac_I_ROUNDS - 1]);
-        kx = XOR128(kx, st->i_rks[elimac_I_ROUNDS]);
-
-        acc = XOR128(acc, kx);
-    }
-
-    BlockVec t;
-
-    t = AES_XENCRYPT(acc, st->e_rks[0]);
+    BlockVec t = AES_XENCRYPT(acc, st->e_rks[0]);
     for (size_t j = 1; j < elimac_E_ROUNDS - 1; j++) {
         t = AES_XENCRYPT(t, st->e_rks[j]);
     }
