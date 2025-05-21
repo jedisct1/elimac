@@ -41,14 +41,14 @@ typedef uint64x2_t BlockVec;
 #define BYTESHL128(a, b) vreinterpretq_u64_u8(vextq_s8(vdupq_n_s8(0), (int8x16_t) a, 16 - (b)))
 
 #define AES_XENCRYPT(block_vec, rkey) \
-    vreinterpretq_u64_u8(vaesmcq_u8(vaeseq_u8(vreinterpretq_u8_u64(block_vec), rkey)))
+    vreinterpretq_u64_u8(vaesmcq_u8(vaeseq_u8(rkey, vreinterpretq_u8_u64(block_vec))))
 #define AES_XENCRYPTLAST(block_vec, rkey) \
-    vreinterpretq_u64_u8(vaeseq_u8(vreinterpretq_u8_u64(block_vec), rkey))
+    vreinterpretq_u64_u8(vaeseq_u8(rkey, vreinterpretq_u8_u64(block_vec)))
 
 static inline BlockVec
 AES_KEYGEN(BlockVec block_vec, const int rc)
 {
-    uint8x16_t       a = vaeseq_u8(vreinterpretq_u8_u64(block_vec), vmovq_n_u8(0));
+    uint8x16_t       a = vaeseq_u8(vmovq_n_u8(0), vreinterpretq_u8_u64(block_vec));
     const uint8x16_t b =
         __builtin_shufflevector(a, a, 4, 1, 14, 11, 1, 14, 11, 4, 12, 9, 6, 3, 9, 6, 3, 12);
     const uint64x2_t c = SET64x2((uint64_t) rc << 32, (uint64_t) rc << 32);
