@@ -4,31 +4,32 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
 
-    const lib = b.addStaticLibrary(.{
-        .name = "elimac",
+    const lib_mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
         .strip = true,
+        .link_libc = true,
     });
 
-    lib.linkLibC();
+    const lib = b.addLibrary(.{
+        .name = "elimac",
+        .root_module = lib_mod,
+        .linkage = .static,
+    });
 
     const lib_options = b.addOptions();
 
     const with_benchmark: bool = b.option(bool, "with-benchmark", "Compile benchmark") orelse false;
     lib_options.addOption(bool, "benchmark", with_benchmark);
 
-    lib.addIncludePath(b.path("src/include"));
+    lib_mod.addIncludePath(b.path("src/include"));
 
     const source_files = &.{
         "src/elimac.c",
     };
 
-    lib.addCSourceFiles(.{ .files = source_files });
+    lib_mod.addCSourceFiles(.{ .files = source_files });
 
-    // This declares intent for the executable to be installed into the
-    // standard location when the user invokes the "install" step (the default
-    // step when running `zig build`).
     b.installArtifact(lib);
 
     b.installDirectory(.{
@@ -38,14 +39,26 @@ pub fn build(b: *std.Build) void {
     });
 
     if (with_benchmark) {
-        const benchmark = b.addExecutable(.{
-            .name = "benchmark",
-            .root_source_file = b.path("src/test/benchmark.zig"),
+        const translate_c = b.addTranslateC(.{
+            .root_source_file = b.path("src/include/elimac.h"),
             .target = target,
             .optimize = optimize,
         });
-        benchmark.addIncludePath(b.path("src/include"));
-        benchmark.linkLibrary(lib);
+        translate_c.addIncludePath(b.path("src/include"));
+
+        const benchmark = b.addExecutable(.{
+            .name = "benchmark",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/test/benchmark.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "elimac", .module = translate_c.createModule() },
+                },
+            }),
+        });
+        benchmark.root_module.addIncludePath(b.path("src/include"));
+        benchmark.root_module.linkLibrary(lib);
         b.installArtifact(benchmark);
     }
 }
