@@ -22,8 +22,8 @@
 
 typedef __m128i BlockVec;
 
-#define LOAD128(a)                 _mm_loadu_si128((const BlockVec *) (a))
-#define STORE128(a, b)             _mm_storeu_si128((BlockVec *) (a), (b))
+#define LOAD128(a)                 _mm_loadu_si128((const BlockVec *) (const void *) (a))
+#define STORE128(a, b)             _mm_storeu_si128((BlockVec *) (void *) (a), (b))
 #define SET64x2(a, b)              _mm_set_epi64x((uint64_t) (a), (uint64_t) (b))
 #define ZERO128                    _mm_setzero_si128()
 #define ADD64x2(a, b)              _mm_add_epi64((a), (b))
